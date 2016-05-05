@@ -40,7 +40,7 @@ int pirPin = 7;
 #define SENSE_DHT true
 int dhtPin = 6;
 // Unique sensorId, must also be configured in system
-char sensorId[9] = "SENSOR_1";
+char sensorId[9] = "SENSOR_3";
 // GatewayID, to be used for security
 char gatewayId[9] = "GATEWAY1";
 
@@ -62,18 +62,17 @@ int relay = 8;
 
 // DELAYS AND DATA --------------------------------------------------
 // delay after each reading
-long loopInterval = 36 * 1000L;
-long dhtInterval = 3 * 60 * 1000L;
-long sendInterval = 9 * 60 * 1000L;
+long sendInterval = 15 * 1000L;
+long loopInterval = sendInterval/15;
+long dhtInterval = sendInterval/3;
 long lastMotion = 0;
 long lastSend = 0;
 long lastDHT = 0;
 
 // Messages - aggregate all readings into discrete readings
-const int aggNum = 10;
-int motionData[aggNum];
-float hData[aggNum];
-float tData[aggNum];
+int motionData[15];
+float hData[3];
+float tData[3];
 int dataPos = 0;
 int motionDataPos = 0;
 
@@ -135,15 +134,19 @@ bool readMotion() {
     if (pirState == LOW) {
       pirState = HIGH;
     }
-    motionData[motionDataPos] = 1;
-    motionDataPos += 1;
+    if (motionDataPos < 10) {
+      motionData[motionDataPos] = 1;
+      motionDataPos += 1;
+    }
     return true;
   } else {
     if (val == LOW && pirState == HIGH) {
       pirState = LOW;
     }
-    motionData[motionDataPos] = 0;
-    motionDataPos += 1;
+    if (motionDataPos < 10) {
+      motionData[motionDataPos] = 0;
+      motionDataPos += 1;
+    }
   }
   return false;
 }
@@ -168,7 +171,7 @@ bool readDHTData() {
   Serial.println(" *F");
 
   long now = millis();
-  if (dataPos < aggNum) { // catches edge case
+  if (dataPos < 3) { // catches edge case
     hData[dataPos] = h;
     tData[dataPos] = f;
     dataPos += 1;
@@ -245,10 +248,12 @@ void sendData(int dataIndex) {
 void loop(void) {
   long now = millis();
   if (SENSE_DHT && now - lastDHT > dhtInterval) {
+    Serial.println("reading DHT data");
     readDHTData();
     lastDHT = now;
   }
   if (SENSE_MOTION) {
+    Serial.println("reading motion data");
     readMotion();
   }
   // Only send if it's been > 2 min since the last send
