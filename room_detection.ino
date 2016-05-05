@@ -62,19 +62,12 @@ int relay = 8;
 
 // DELAYS AND DATA --------------------------------------------------
 // delay after each reading
-long sendInterval = 15 * 1000L;
-long loopInterval = sendInterval/15;
-long dhtInterval = sendInterval/3;
+long loopInterval = 1000L;
+long dhtInterval = 15*loopInterval;
+long motionInterval = 5*loopInterval;
 long lastMotion = 0;
 long lastSend = 0;
 long lastDHT = 0;
-
-// Messages - aggregate all readings into discrete readings
-int motionData[15];
-float hData[3];
-float tData[3];
-int dataPos = 0;
-int motionDataPos = 0;
 
 void setup(void)
 {
@@ -134,21 +127,46 @@ bool readMotion() {
     if (pirState == LOW) {
       pirState = HIGH;
     }
-    if (motionDataPos < 10) {
-      motionData[motionDataPos] = 1;
-      motionDataPos += 1;
-    }
+    sendMotionData();
     return true;
   } else {
     if (val == LOW && pirState == HIGH) {
       pirState = LOW;
     }
-    if (motionDataPos < 10) {
-      motionData[motionDataPos] = 0;
-      motionDataPos += 1;
-    }
   }
   return false;
+}
+
+void sendMotionData() {
+  char message[messageLength];
+  char * curr = message;
+  writeHeader(curr);
+  curr += 16;
+  *curr++ = 'M';
+  int dataWritten = 0;
+  while (dataWritten < 15) {
+    *curr++ = ' ';
+    dataWritten += 1;
+  }
+
+  Serial.println(message);
+
+  bool success = false;
+  while (!success) {
+    // first 16 bytes is header
+    // next 16 bytes is motion information
+
+    radio.stopListening();
+    success = radio.write(message, messageLength);
+    radio.printDetails();
+    if (success) {
+      lastSend = millis();
+      Serial.println("Sent message");
+    } else {
+      Serial.println("Failed to send message");
+    }
+  }
+  radio.startListening();
 }
 
 bool readDHTData() {
@@ -171,60 +189,28 @@ bool readDHTData() {
   Serial.println(" *F");
 
   long now = millis();
-  if (dataPos < 3) { // catches edge case
-    hData[dataPos] = h;
-    tData[dataPos] = f;
-    dataPos += 1;
-  }
+  sendTempData(f,h);
 
   return true;
 }
 
-void sendData(int dataIndex) {
+void sendTempData(float temp, float humidity) {
   char message[messageLength];
-  char msg[messageLength];
   char * curr = message;
   writeHeader(curr);
   curr += 16;
+  *curr++ = 'T';
+  writeStringToBuffer(curr, 5, String(temp));
+  curr += 5;
+  *curr++ = 'H';
+  writeStringToBuffer(curr, 5, String(humidity));
+  curr += 5;
+  int dataWritten = 0;
+  while (dataWritten < 4) {
+    *curr++ = ' ';
+    dataWritten += 1;
+  }
 
-  if (dataIndex == 0) {
-    *curr++ = 'T';
-  } else if (dataIndex == 1) {
-    *curr++ = 'H';
-  } else {
-    *curr++ = 'M';
-  }
-  if (dataIndex <= 1) {
-    int dataWritten = 0;
-    for (int i = 0; i < dataPos; i++) {
-      // should fix to accomodate diff lengths of readings
-      if (dataWritten < 11) {
-        if (dataIndex == 0) {
-          writeStringToBuffer(curr, 5, String(tData[i]));
-        } else {
-          writeStringToBuffer(curr, 5, String(hData[i]));
-        } 
-      }
-      curr += 5;
-      dataWritten += 5;
-    }
-    while (dataWritten < 15) {
-      *curr++ = ' ';
-      dataWritten += 1;
-    }
-  } else {
-    int dataWritten = 0;
-    for (int i = 0; i < motionDataPos; i++) {
-      if (dataWritten < 15) {
-        writeStringToBuffer(curr, 1, String(motionData[i]));
-        curr += 1;
-      }
-    }
-    while (dataWritten < 15) {
-      *curr++ = ' ';
-      dataWritten += 1;
-    }
-  }
   Serial.println(message);
 
   bool success = false;
@@ -252,21 +238,10 @@ void loop(void) {
     readDHTData();
     lastDHT = now;
   }
-  if (SENSE_MOTION) {
+  if (SENSE_MOTION && now - lastMotion > motionInterval) {
     Serial.println("reading motion data");
     readMotion();
-  }
-  // Only send if it's been > 2 min since the last send
-  if (now - lastSend > sendInterval) {
-    // index 0 -> temperature
-    // index 1 -> humidity
-    // index 2 -> motion
-    for (int dataIndex = 0; dataIndex < 3; dataIndex++) {
-      sendData(dataIndex);
-    }
-    lastSend = now;
-    dataPos = 0;
-    motionDataPos = 0;
+    lastMotion = now;
   }
   Sleepy::loseSomeTime(loopInterval);
 }
