@@ -15,10 +15,10 @@
 #include <SPI.h>
 #include "RF24.h"
 #include "DHT.h"
-#include <JeeLib.h>
-ISR(WDT_vect) {
-  Sleepy::watchdogEvent();
-}
+//#include <JeeLib.h>
+//ISR(WDT_vect) {
+//  Sleepy::watchdogEvent();
+//}
 
 /*
    Configuration:
@@ -40,7 +40,7 @@ int pirPin = 7;
 #define SENSE_DHT true
 int dhtPin = 6;
 // Unique sensorId, must also be configured in system
-char sensorId[9] = "SENSOR_3";
+char sensorId[9] = "SENSOR_1";
 // GatewayID, to be used for security
 char gatewayId[9] = "GATEWAY1";
 
@@ -62,9 +62,9 @@ int relay = 8;
 
 // DELAYS AND DATA --------------------------------------------------
 // delay after each reading
-long loopInterval = 1000L;
-long dhtInterval = 15*loopInterval;
-long motionInterval = 5*loopInterval;
+long loopInterval = 500;
+long dhtInterval = 7*loopInterval;
+long motionInterval = 7 *loopInterval;
 long lastMotion = 0;
 long lastSend = 0;
 long lastDHT = 0;
@@ -78,14 +78,13 @@ void setup(void)
   Serial.begin(9600);
   Serial.println("\nBooting Arduino...\n\r");
 
-  if (SENSE_MOTION) {
-    radio.begin();
-    radio.setRetries(15, 15);
-    radio.openWritingPipe(pipe[0]);
-    radio.openReadingPipe(1,pipe[1]);
-    radio.startListening();
-    radio.printDetails();
-  }
+  radio.begin();
+  radio.setRetries(15, 15);
+  radio.openWritingPipe(pipe[0]);
+  radio.openReadingPipe(1,pipe[1]);
+  radio.startListening();
+  radio.setAutoAck(false);
+//  radio.printDetails();
   if (SENSE_DHT) {
     dht.begin();
   }
@@ -152,11 +151,10 @@ void sendMotionData() {
   Serial.println(message);
 
   bool success = false;
+  radio.stopListening();
   while (!success) {
     // first 16 bytes is header
     // next 16 bytes is motion information
-
-    radio.stopListening();
     success = radio.write(message, messageLength);
     radio.printDetails();
     if (success) {
@@ -215,10 +213,10 @@ void sendTempData(float temp, float humidity) {
 
   bool success = false;
   while (!success) {
+    radio.stopListening();
+
     // first 16 bytes is header
     // next 16 bytes is motion information
-
-    radio.stopListening();
     success = radio.write(message, messageLength);
     radio.printDetails();
     if (success) {
@@ -227,8 +225,9 @@ void sendTempData(float temp, float humidity) {
     } else {
       Serial.println("Failed to send message");
     }
+    radio.startListening();
   }
-  radio.startListening();
+  
 }
 
 void loop(void) {
@@ -243,5 +242,5 @@ void loop(void) {
     readMotion();
     lastMotion = now;
   }
-  Sleepy::loseSomeTime(loopInterval);
+  delay(loopInterval);
 }
