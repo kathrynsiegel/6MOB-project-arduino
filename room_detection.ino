@@ -62,9 +62,7 @@ int relay = 8;
 
 // DELAYS AND DATA --------------------------------------------------
 // delay after each reading
-long loopInterval = 500;
-long dhtInterval = 7*loopInterval;
-long motionInterval = 7 *loopInterval;
+long loopInterval = 1000;
 long lastMotion = 0;
 long lastSend = 0;
 long lastDHT = 0;
@@ -126,24 +124,28 @@ bool readMotion() {
     if (pirState == LOW) {
       pirState = HIGH;
     }
-    sendMotionData();
+    sendMotionData(1);
     return true;
   } else {
     if (val == LOW && pirState == HIGH) {
       pirState = LOW;
     }
   }
+  sendMotionData(0);
   return false;
 }
 
-void sendMotionData() {
+void sendMotionData(int msg) {
   char message[messageLength];
   char * curr = message;
   writeHeader(curr);
   curr += 16;
   *curr++ = 'M';
+  writeStringToBuffer(curr, 1, String(msg));
+  curr++;
+  
   int dataWritten = 0;
-  while (dataWritten < 15) {
+  while (dataWritten < 14) {
     *curr++ = ' ';
     dataWritten += 1;
   }
@@ -156,7 +158,6 @@ void sendMotionData() {
     // first 16 bytes is header
     // next 16 bytes is motion information
     success = radio.write(message, messageLength);
-    radio.printDetails();
     if (success) {
       lastSend = millis();
       Serial.println("Sent message");
@@ -218,7 +219,6 @@ void sendTempData(float temp, float humidity) {
     // first 16 bytes is header
     // next 16 bytes is motion information
     success = radio.write(message, messageLength);
-    radio.printDetails();
     if (success) {
       lastSend = millis();
       Serial.println("Sent message");
@@ -232,15 +232,16 @@ void sendTempData(float temp, float humidity) {
 
 void loop(void) {
   long now = millis();
-  if (SENSE_DHT && now - lastDHT > dhtInterval) {
+//  if (SENSE_DHT && now - lastDHT > dhtInterval) {
     Serial.println("reading DHT data");
     readDHTData();
-    lastDHT = now;
-  }
-  if (SENSE_MOTION && now - lastMotion > motionInterval) {
+//    lastDHT = now;
+//  }
+  delay(loopInterval);
+//  if (SENSE_MOTION && now - lastMotion > motionInterval) {
     Serial.println("reading motion data");
     readMotion();
-    lastMotion = now;
-  }
+//    lastMotion = now;
+//  }
   delay(loopInterval);
 }
