@@ -227,21 +227,13 @@ void sendTempData(float temp, float humidity) {
     }
     radio.startListening();
   }
-  
 }
 
 void loop(void) {
-  long now = millis();
-//  if (SENSE_DHT && now - lastDHT > dhtInterval) {
-    Serial.println("reading DHT data");
-    readDHTData();
-//    lastDHT = now;
-//  }
+  Serial.println("reading DHT data");
+  readDHTData();
   delay(loopInterval);
-//  if (SENSE_MOTION && now - lastMotion > motionInterval) {
-    Serial.println("reading motion data");
-    readMotion();
-//    lastMotion = now;
-//  }
+  Serial.println("reading motion data");
+  readMotion();
   delay(loopInterval);
 }
