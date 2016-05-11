@@ -1,1 +1,1 @@
-# 6MOB-project-arduino
+# 6MOB project - Arduino code
